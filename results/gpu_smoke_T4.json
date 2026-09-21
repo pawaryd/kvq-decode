@@ -1,0 +1,12 @@
+{
+  "gpu": "T4",
+  "device": "Tesla T4",
+  "compute_capability": "7.5",
+  "torch": "2.14.0+cu130",
+  "cuda": "13.0",
+  "size_mb": 1024,
+  "iters": 50,
+  "ms_per_copy": 9.1681494140625,
+  "copy_GBps": 234.23305522334724,
+  "nvidia_smi": "Tesla T4, 15360 MiB, 580.95.05"
+}
