@@ -11,6 +11,7 @@ dependencies = ["torch>=2.1", "numpy"]
 
 [project.optional-dependencies]
 dev = ["pytest"]
+plot = ["matplotlib"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

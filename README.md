@@ -11,13 +11,24 @@ LLM decode is memory-bandwidth-bound: each step reads the whole KV cache to prod
 | # | Milestone | State |
 |---|---|---|
 | 1 | PyTorch reference + roofline script | done |
-| 2 | Triton FP16 paged-KV kernel | done, correct but slow (see below) |
-| 3 | Split-KV (split the sequence, merge partial softmaxes) | planned |
+| 2 | Triton FP16 paged-KV kernel | done |
+| 3 | Split-KV (split the sequence, merge partial softmaxes) | done; ~80% of A100 peak at batch >= 8 |
 | 4 | Quantized KV (INT8/FP8, then INT4), fused dequant | not started |
 | 5 | CUDA port of the hot path | not started |
 | 6 | Benchmark vs FlashInfer / vLLM; vLLM/HF backend | not started |
 
-**Current performance (Triton FP16, Tesla T4, one layer, Llama-3-8B shape):** 2-5% of peak bandwidth at batch 1 and about 13.5% at batch 32. The kernel matches the reference but is not yet fast: batch 1 launches only 8 programs, and the per-page loop is latency-bound. Split-KV (milestone 3) targets this. No speedup over any other implementation has been measured. Details and failed attempts are in [docs/NOTES.md](docs/NOTES.md); raw numbers are in `results/`.
+**Current performance (Triton FP16 with split-KV, one layer, Llama-3-8B shape, single run each):**
+
+| GPU | Batch / context | Achieved | % of peak |
+|---|---|---|---|
+| A100-80GB | 8-32 / 16k-64k | 1.6 TB/s | ~78-80% |
+| A100-80GB | 1 / 64k | 1.09 TB/s | ~53% |
+| A100-80GB | 1 / 4k-16k | 0.12-0.48 TB/s | 6-24% |
+| T4 | any | 40-46 GB/s | 13-15% |
+
+![Bandwidth vs KV splits and batch size](docs/img/splitkv_scaling.png)
+
+Split-KV is what makes batch 1 usable (A100, 64k context: 88 -> 1089 GB/s). The T4 numbers are far below the A100's percentages with identical code, so the T4 is used for correctness only and not for tuning. Small-batch, short-context cases are still weak. No speedup over any other implementation (FlashInfer, vLLM) has been measured, and the A100 short-context rows can be partly served from L2. Details, hypotheses and failed attempts are in [docs/NOTES.md](docs/NOTES.md); raw numbers are in `results/`.
 
 ## Layout
 
@@ -31,6 +42,7 @@ bench/             benchmark and roofline CLI scripts
 modal_scripts/     Modal launch scripts (GPU runs)
 results/           benchmark output (*.json)
 docs/NOTES.md      design choices, results, failed attempts
+docs/img/          plots (regenerate: python bench/plot_splitkv.py, needs `pip install -e '.[plot]'`)
 ```
 
 The KV cache uses the vLLM-style layout: `k_cache`/`v_cache` are `[num_blocks, block_size, Hkv, D]`, `block_table` is `[B, max_blocks]` int32, and `seq_lens` is `[B]` int32.
@@ -65,7 +77,7 @@ python -m modal run /path/to/repo/modal_scripts/run_remote.py --gpu T4 \
     --cmd "python bench/bench_triton_fp16.py" --save triton_fp16_T4
 python -m modal run /path/to/repo/modal_scripts/gpu_smoke.py --gpu T4
 ```
-`--gpu` accepts `T4`, `A100-80GB`, `H100`, `B200`. Only `T4` has been run so far. Keep runs short; the functions use `max_containers=1` and a short `scaledown_window`.
+`--gpu` accepts `T4`, `A100-80GB`, `H100`, `B200`. `T4` and `A100-80GB` have been run; `H100` and `B200` have not. Keep runs short; the functions use `max_containers=1` and a short `scaledown_window`.
 
 ## Ground rules
 
