@@ -38,8 +38,10 @@ src/bpt/
   roofline.py      bytes-per-token and bandwidth-floor math, GPU peak table
   triton_fp16.py   Triton FP16 paged decode kernel
 tests/             pytest correctness tests
+examples/          small commented Triton examples for learning (run on a GPU / Modal)
 bench/             benchmark and roofline CLI scripts
 modal_scripts/     Modal launch scripts (GPU runs)
+tools/             helper scripts (e.g. fetch Triton sources for the IDE)
 results/           benchmark output (*.json)
 docs/NOTES.md      design choices, results, failed attempts
 docs/img/          plots (regenerate: python bench/plot_splitkv.py, needs `pip install -e '.[plot]'`)
@@ -53,6 +55,8 @@ The KV cache uses the vLLM-style layout: `k_cache`/`v_cache` are `[num_blocks, b
 python -m venv .venv && source .venv/bin/activate
 pip install -e '.[dev]'
 ```
+
+On macOS (or any machine without an NVIDIA GPU) Triton can't be installed, so `import triton` won't resolve in the IDE. Run `tools/fetch_triton_src.sh` once to extract Triton's Python sources into `.triton-src/` (not installed, editor-only); `.vscode/settings.json` points Pylance at it.
 
 ## Usage
 

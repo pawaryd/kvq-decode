@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 
 import matplotlib
+from matplotlib.lines import Line2D
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -79,7 +80,7 @@ def main():
                 ax.set_ylabel(f"{gpu}\n% of peak ({d['peak_GBps']:.0f} GB/s)", fontsize=10)
             if r == 1:
                 ax.set_xlabel("KV splits  (1 = single-pass kernel)", fontsize=9)
-    handles = [plt.Line2D([], [], color=c, lw=2, marker=m, ms=7, markeredgecolor=SURFACE,
+    handles = [Line2D([], [], color=c, lw=2, marker=m, ms=7, markeredgecolor=SURFACE,
                           label=f"batch {B}") for B, (c, m) in BATCH_STYLE.items()]
     fig.legend(handles=handles, loc="upper right", ncol=3, frameon=False, fontsize=10,
                bbox_to_anchor=(0.98, 0.985), labelcolor=INK)

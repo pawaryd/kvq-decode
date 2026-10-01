@@ -216,3 +216,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Triton python sources for IDE go-to-definition (tools/fetch_triton_src.sh)
+.triton-src/

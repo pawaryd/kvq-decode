@@ -24,6 +24,7 @@ image = (
     .add_local_dir(ROOT / "src", "/repo/src")
     .add_local_dir(ROOT / "tests", "/repo/tests")
     .add_local_dir(ROOT / "bench", "/repo/bench")
+    .add_local_dir(ROOT / "examples", "/repo/examples")
 )
 
 

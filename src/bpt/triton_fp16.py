@@ -10,6 +10,9 @@ contiguous ranges handled by separate programs (grid axis 2). Each writes a norm
 partial output plus its log-sum-exp; a second small kernel merges them. `num_splits=1`
 runs the original single-pass kernel (the milestone-2 baseline).
 """
+# pyright: reportArgumentType=false, reportOperatorIssue=false
+# (Triton annotates kernel params as `tl.constexpr` and types `tl.sum`/`tl.max` loosely; passing a
+#  plain int for a constexpr is the normal idiom, so these two checks are noise in this file.)
 import functools
 import math
 from typing import Optional
@@ -202,21 +205,22 @@ def paged_decode_attention_triton(
 
     out = torch.empty_like(q)
     max_pages = block_table.shape[1]
-    if num_splits is None:
-        num_splits = choose_num_splits(B, Hkv, block_size, max_pages,
-                                       _sm_count(q.device.index or 0))
-    num_splits = max(1, min(num_splits, max_pages))
+    splits: int = (num_splits if num_splits is not None else
+                   choose_num_splits(B, Hkv, block_size, max_pages,
+                                     _sm_count(q.device.index or 0)))
+    splits = max(1, min(splits, max_pages))
     g_pad = max(16, triton.next_power_of_2(group))
 
-    if num_splits > 1:
-        pages_per_split = triton.cdiv(max_pages, num_splits)
-        num_splits = triton.cdiv(max_pages, pages_per_split)  # drop always-empty tails
-    if num_splits > 1:
-        o_part = torch.empty(B, Hq, num_splits, D, dtype=torch.float32, device=q.device)
-        lse = torch.empty(B, Hq, num_splits, dtype=torch.float32, device=q.device)
-        _split_kernel[(B, Hkv, num_splits)](
+    pages_per_split = max_pages
+    if splits > 1:
+        pages_per_split = triton.cdiv(max_pages, splits)
+        splits = triton.cdiv(max_pages, pages_per_split)  # drop always-empty tails
+    if splits > 1:
+        o_part = torch.empty(B, Hq, splits, D, dtype=torch.float32, device=q.device)
+        lse = torch.empty(B, Hq, splits, dtype=torch.float32, device=q.device)
+        _split_kernel[(B, Hkv, splits)](
             q, k_cache, v_cache, block_table, seq_lens, o_part, lse,
-            scale, pages_per_split, num_splits,
+            scale, pages_per_split, splits,
             q.stride(0), q.stride(1),
             k_cache.stride(0), k_cache.stride(1), k_cache.stride(2),
             v_cache.stride(0), v_cache.stride(1), v_cache.stride(2),
@@ -225,8 +229,8 @@ def paged_decode_attention_triton(
             GROUP=group, G_PAD=g_pad, D=D, BLOCK=block_size,
         )
         _merge_kernel[(B, Hq)](
-            o_part, lse, out, out.stride(0), out.stride(1), Hq, num_splits,
-            D=D, S_PAD=triton.next_power_of_2(num_splits),
+            o_part, lse, out, out.stride(0), out.stride(1), Hq, splits,
+            D=D, S_PAD=triton.next_power_of_2(splits),
         )
         return out
 
